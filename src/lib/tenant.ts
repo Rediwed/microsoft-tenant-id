@@ -238,7 +238,8 @@ async function getUserRealm(domain: string, cloud: CloudKey): Promise<Partial<Te
     return {
       brandName: json.FederationBrandName || undefined,
       namespaceType: ns === "Managed" || ns === "Federated" ? ns : undefined,
-      federationUrl: json.AuthURL || undefined,
+      // Only surface https federation endpoints (AuthURL is remote-sourced from getuserrealm).
+      federationUrl: json.AuthURL && /^https:\/\//i.test(json.AuthURL) ? json.AuthURL : undefined,
     };
   } catch {
     return {};
