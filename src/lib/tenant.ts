@@ -325,7 +325,11 @@ export function jsonSnippet(result: TenantResult): string {
 }
 
 function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  // Neutralize spreadsheet formula injection: a cell beginning with = + - @ tab or CR
+  // can be executed as a formula by Excel/Sheets. Values like brandName come from a
+  // looked-up domain's owner, so prefix any such cell with a single quote first.
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 export function toCsv(results: TenantResult[]): string {
