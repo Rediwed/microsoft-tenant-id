@@ -2,6 +2,18 @@
 
 Look up the **Microsoft Entra (Azure AD) tenant ID** for any domain, email address, or URL — right from Raycast. Resolve one domain or a whole list at once, see the organization name and sign-in type, and copy the result in whatever format you need. You can also go the other way — paste a tenant ID to reveal the organization behind it.
 
+## Why use it
+
+A tenant ID is a small thing you end up needing surprisingly often:
+
+- **Wire up CLI tools and scripts** — paste it straight into `az login --tenant`, `Connect-AzAccount -TenantId`, `Connect-MgGraph -TenantId`, or an app's authority URL.
+- **Set up cross-tenant collaboration** — B2B guest access, cross-tenant sync, and conditional access all key off the other organization's tenant ID.
+- **Identify who's behind a domain** — confirm the organization and whether its Microsoft 365 is managed or federated (ADFS).
+- **Decode sign-in errors, tokens, and logs** — turn a bare tenant GUID from an `AADSTS` error, a JWT, or an audit log back into a recognizable organization name.
+- **Size up partners and prospects fast** — see in seconds whether a company runs on Microsoft Entra, and grab its tenant ID.
+- **Co-sell with Microsoft** — confirm you and your Microsoft contact mean the same customer, and use the exact tenant ID when submitting engagements, referrals, tickets, or claims in Partner Center.
+- **Onboard and manage customer tenants** — pin down the managing and customer tenant IDs for Azure Lighthouse delegations, or identify tenants when managing customers at scale in Microsoft 365 Lighthouse.
+
 ## How it works
 
 Every Microsoft Entra tenant exposes a public OpenID Connect discovery document at:
@@ -38,27 +50,9 @@ Paste a tenant GUID and it returns the tenant's **organization display name** an
 
 ## Signing in
 
-Nothing to set up. **Personal-account tenant IDs** resolve instantly with no sign-in. The first time you resolve an **organization** tenant ID, Raycast opens a Microsoft sign-in in your browser — approve the one-time consent and you're done. You can **Sign out** anytime from the command's actions. The app registration is built in, so each user simply signs into their own tenant.
+Nothing to set up. **Personal-account tenant IDs** resolve instantly with no sign-in. The first time you resolve an **organization** tenant ID, Raycast opens a Microsoft sign-in in your browser — approve the one-time consent and you're done. You can **Sign out** anytime from the command's actions.
 
-**Sign-in requires a work or school account.** Personal Microsoft accounts can't be used to sign in — Microsoft Graph's reverse-lookup API doesn't support them as the caller. So if you only have a personal account, you can still use every no-sign-in feature (the forward lookups and personal-account tenant IDs), but resolving an arbitrary *organization* tenant ID needs a work or school account.
-
-### Using your own app registration (optional)
-
-The extension ships with a built-in multitenant Application (client) ID, so you don't need your own. If you fork the extension and want to point it at your own registration, replace the `CLIENT_ID` constant in `src/lib/auth.ts`. To create one:
-
-1. Open the [Microsoft Entra admin center](https://entra.microsoft.com/) → **Identity → Applications → App registrations → + New registration**.
-2. **Name** it (e.g. `Raycast Tenant Lookup`); under **Supported account types** pick **Accounts in any organizational directory (Multitenant)**.
-3. Under **Redirect URI**, select the platform **Public client/native (mobile & desktop)** and enter:
-
-   ```
-   https://raycast.com/redirect?packageName=Extension
-   ```
-
-4. Click **Register**, open **Authentication**, and confirm **Allow public client flows** is **Yes** (avoids the `AADSTS7000218` error).
-5. Open **API permissions → + Add a permission → Microsoft Graph → Delegated permissions** and add **`CrossTenantInformation.ReadBasic.All`** — the only permission needed (you can remove the default `User.Read`).
-6. Copy the **Application (client) ID** from the app's **Overview** into `CLIENT_ID` in `src/lib/auth.ts`.
-
-> **The Application (client) ID is not a secret.** It grants no access on its own — every user still authenticates with their own Microsoft account — so it's safe to commit to source control.
+**Sign-in requires a work or school account.** Personal Microsoft accounts can't be used to sign in — Microsoft Graph's reverse-lookup API doesn't support them as the caller. So if you only have a personal account, you can still use every no-sign-in feature (the forward lookups and personal-account tenant IDs), but resolving an arbitrary *organization* tenant ID needs a work or school account. Don't have one? You can create a free [Microsoft Entra](https://entra.microsoft.com/) directory and sign in with an account from it.
 
 ## Copy formats
 
