@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Action, ActionPanel, Color, Icon, List, type LaunchProps } from "@raycast/api";
-import { useCachedPromise } from "@raycast/utils";
+import { useCachedPromise, withAccessToken, getAccessToken } from "@raycast/utils";
 import { isTenantId, lookupConsumerTenant, type TenantResult } from "./lib/tenant";
 import { authorize, logout } from "./lib/auth";
 import { findTenantById, type TenantInfo } from "./lib/graph";
@@ -18,6 +18,59 @@ function infoToResult(info: TenantInfo): TenantResult {
   };
 }
 
+interface OrgLookupProps {
+  tenantId: string;
+  searchText: string;
+  onSearchTextChange: (text: string) => void;
+}
+
+/**
+ * Authenticated organization lookup. Wrapping only this view in `withAccessToken`
+ * keeps the OAuth promise in a module-level store, so the sign-in survives the
+ * browser round-trip — including on Windows, where opening the browser tears the
+ * command view down and would otherwise abandon a fetcher-initiated sign-in.
+ */
+function OrgLookup({ tenantId, searchText, onSearchTextChange }: OrgLookupProps) {
+  const { token } = getAccessToken();
+  const { record } = useHistory();
+
+  const { data, isLoading } = useCachedPromise(
+    async (tid: string, accessToken: string): Promise<TenantResult> => {
+      try {
+        return infoToResult(await findTenantById(accessToken, tid));
+      } catch (error) {
+        return {
+          input: tid,
+          domain: "",
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+    [tenantId, token],
+    {
+      keepPreviousData: true,
+      onData: (result) => {
+        if (result.tenantId) void record([result]);
+      },
+    },
+  );
+
+  return (
+    <List
+      isLoading={isLoading}
+      searchText={searchText}
+      onSearchTextChange={onSearchTextChange}
+      searchBarPlaceholder="Paste a tenant ID (GUID)"
+      isShowingDetail={!!data?.tenantId}
+      throttle
+    >
+      {data ? <TenantListItem result={data} /> : null}
+    </List>
+  );
+}
+
+const AuthedOrgLookup = withAccessToken<OrgLookupProps>({ authorize })(OrgLookup);
+
 export default function LookUpByTenantId(
   props: LaunchProps<{ arguments: Arguments.LookupByTenantId }>,
 ) {
@@ -28,42 +81,24 @@ export default function LookUpByTenantId(
   // Well-known consumer (personal-account) tenants resolve locally, with no sign-in.
   const consumer = valid ? lookupConsumerTenant(query) : undefined;
 
-  const { record } = useHistory();
-
-  const { data, isLoading } = useCachedPromise(
-    async (tenantId: string): Promise<TenantResult> => {
-      try {
-        // Sign in lazily — only when a non-consumer ID actually needs Microsoft Graph.
-        const token = await authorize();
-        return infoToResult(await findTenantById(token, tenantId));
-      } catch (error) {
-        return {
-          input: tenantId,
-          domain: "",
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    },
-    [query],
-    {
-      execute: valid && !consumer,
-      keepPreviousData: true,
-      onData: (result) => {
-        if (result.tenantId) void record([result]);
-      },
-    },
-  );
-
-  const result = consumer ?? data;
-  const hasResult = valid && !!result?.tenantId;
+  // Organization tenant IDs need Microsoft Graph — hand off to the authenticated
+  // view. Everything else (empty, invalid, or personal-account) stays sign-in-free.
+  if (valid && !consumer) {
+    return (
+      <AuthedOrgLookup
+        tenantId={query}
+        searchText={searchText}
+        onSearchTextChange={setSearchText}
+      />
+    );
+  }
 
   return (
     <List
-      isLoading={isLoading}
       searchText={searchText}
       onSearchTextChange={setSearchText}
       searchBarPlaceholder="Paste a tenant ID (GUID)"
-      isShowingDetail={hasResult}
+      isShowingDetail={!!consumer?.tenantId}
       throttle
     >
       {!valid ? (
@@ -84,8 +119,8 @@ export default function LookUpByTenantId(
             </ActionPanel>
           }
         />
-      ) : result ? (
-        <TenantListItem result={result} />
+      ) : consumer ? (
+        <TenantListItem result={consumer} />
       ) : null}
     </List>
   );
